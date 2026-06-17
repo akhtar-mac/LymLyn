@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 500" width="200" height="500">
+  <defs>
+    <style>
+      .silhouette { fill: #E5E5E5; }
+    </style>
+  </defs>
+  <!-- Base Silhouette -->
+  <!-- Neck/Head area (head will be overlaid by photo) -->
+  <circle cx="100" cy="40" r="20" class="silhouette" />
+  
+  <!-- Torso -->
+  <path d="M 57.5 70 
+           Q 100 60 142.5 70 
+           C 150 150 140 200 150 250 
+           L 50 250 
+           C 60 200 50 150 57.5 70 Z" 
+        class="silhouette" />
+        
+  <!-- Arms -->
+  <path d="M 57.5 70 
+           Q 37.5 150 47.5 250 
+           L 67.5 250
+           Q 57.5 150 67.5 70 Z" class="silhouette" />
+  <path d="M 142.5 70 
+           Q 162.5 150 152.5 250 
+           L 132.5 250
+           Q 142.5 150 132.5 70 Z" class="silhouette" />
+           
+  <!-- Legs -->
+  <path d="M 50 250 
+           L 95 480 L 115 480 L 90 250 Z" class="silhouette" />
+  <path d="M 150 250 
+           L 105 480 L 85 480 L 110 250 Z" class="silhouette" />
+</svg>

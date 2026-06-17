@@ -1,0 +1,117 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Plus, ChevronLeft, Loader } from 'lucide-react';
+import { adminApi, productsApi } from '@/lib/api';
+
+const EMPTY_PRODUCT = {
+  name: '', slug: '', description: '', base_price: '',
+  garment_type: 'tshirt', fit_type: 'regular', is_active: true, category_id: '',
+};
+
+export default function AdminProducts() {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState(EMPTY_PRODUCT);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    productsApi.list({ limit: 100 })
+      .then((res) => setProducts(res.products || []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const res = await adminApi.saveProduct({
+        product: { ...form, base_price: parseFloat(form.base_price) },
+      });
+      setProducts((prev) => {
+        const idx = prev.findIndex((p) => p.id === res.product.id);
+        return idx >= 0
+          ? prev.map((p, i) => (i === idx ? res.product : p))
+          : [res.product, ...prev];
+      });
+      setShowForm(false);
+      setForm(EMPTY_PRODUCT);
+    } catch (err) {
+      setError(err.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="container-site py-10 md:py-16">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <Link to="/admin" className="flex items-center gap-1 text-xs text-muted hover:text-ink mb-2"><ChevronLeft size={14} /> Admin</Link>
+          <h1 className="font-display text-4xl font-bold text-ink">Products</h1>
+        </div>
+        <button onClick={() => { setForm(EMPTY_PRODUCT); setShowForm(true); }} className="btn-primary">
+          <Plus size={16} /> Add Product
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSave} className="card mb-8 space-y-4">
+          <h2 className="font-display text-xl font-bold">{form.id ? 'Edit Product' : 'New Product'}</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="input-label">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })} className="input" placeholder="Essential Oversized Tee" /></div>
+            <div><label className="input-label">Slug</label><input required value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className="input" placeholder="essential-oversized-tee" /></div>
+            <div><label className="input-label">Price (₹)</label><input required type="number" min={0} step={0.01} value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} className="input" placeholder="999" /></div>
+            <div>
+              <label className="input-label">Type</label>
+              <select value={form.garment_type} onChange={(e) => setForm({ ...form, garment_type: e.target.value })} className="input">
+                <option value="tshirt">T-Shirt</option>
+                <option value="lower">Lower</option>
+              </select>
+            </div>
+            <div>
+              <label className="input-label">Fit</label>
+              <select value={form.fit_type} onChange={(e) => setForm({ ...form, fit_type: e.target.value })} className="input">
+                <option value="regular">Regular</option>
+                <option value="oversized">Oversized</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 mt-6">
+              <input type="checkbox" id="is_active" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
+              <label htmlFor="is_active" className="text-sm font-medium text-ink">Active (visible in store)</label>
+            </div>
+          </div>
+          <div><label className="input-label">Description</label><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input h-24 resize-none" placeholder="Product description..." /></div>
+          {error && <p className="text-sm text-accent">{error}</p>}
+          <div className="flex gap-3">
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving && <Loader size={14} className="animate-spin" />}
+              {saving ? 'Saving...' : 'Save Product'}
+            </button>
+            <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Cancel</button>
+          </div>
+        </form>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-16 bg-border animate-pulse" />)}</div>
+      ) : (
+        <div className="divide-y divide-border">
+          {products.map((p) => (
+            <div key={p.id} className="flex items-center justify-between py-4">
+              <div>
+                <p className="font-medium text-ink">{p.name}</p>
+                <p className="text-xs text-muted mt-0.5">{p.garment_type} · {p.fit_type} · ₹{Number(p.base_price).toLocaleString('en-IN')}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`badge text-xs ${p.is_active ? 'badge-accent' : 'bg-border text-muted'}`}>{p.is_active ? 'Active' : 'Draft'}</span>
+                <button onClick={() => { setForm({ ...p, base_price: p.base_price }); setShowForm(true); }} className="text-xs text-muted hover:text-ink">Edit</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
