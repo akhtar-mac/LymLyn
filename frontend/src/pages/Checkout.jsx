@@ -21,10 +21,25 @@ export default function Checkout() {
   const { profile } = useAuthStore();
   const navigate = useNavigate();
 
-  const [address, setAddress] = useState({
-    ...INITIAL_ADDRESS,
-    full_name: profile?.full_name || '',
-    phone: profile?.phone || '',
+  const [address, setAddress] = useState(() => {
+    let savedAddress = { ...INITIAL_ADDRESS };
+    if (profile?.address) {
+      try {
+        const parsed = JSON.parse(profile.address);
+        savedAddress = {
+          ...savedAddress,
+          line1: parsed.street || '',
+          city: parsed.city || '',
+          state: parsed.state || '',
+          pincode: parsed.pincode || '',
+        };
+      } catch (e) {}
+    }
+    return {
+      ...savedAddress,
+      full_name: profile?.full_name || '',
+      phone: profile?.phone || '',
+    };
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -47,7 +62,14 @@ export default function Checkout() {
   const total = subtotal - discountAmount;
 
   const handleChange = (e) => {
-    setAddress((a) => ({ ...a, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    let finalValue = value;
+    if (name === 'phone' || name === 'pincode') {
+      finalValue = value.replace(/\D/g, ''); // strip non-digits
+      if (name === 'phone' && finalValue.length > 13) finalValue = finalValue.slice(0, 13);
+      if (name === 'pincode' && finalValue.length > 6) finalValue = finalValue.slice(0, 6);
+    }
+    setAddress((a) => ({ ...a, [name]: finalValue }));
   };
 
   const handleApplyCoupon = async () => {

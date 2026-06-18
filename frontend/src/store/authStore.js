@@ -1,21 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabaseClient';
 
-const DUMMY_USER = {
-  id: 'dummy-user-1',
-  phone: '+919999999999',
-  email: 'demo@lymlyn.com',
-  role: 'authenticated'
-};
-
-const DUMMY_PROFILE = {
-  id: 'dummy-user-1',
-  full_name: 'Demo User',
-  phone: '+91 99999 99999',
-  address: '123 Premium St, New Delhi, India',
-  created_at: new Date().toISOString()
-};
-
 const useAuthStore = create((set, get) => ({
   user: null,
   profile: null,
@@ -24,35 +9,56 @@ const useAuthStore = create((set, get) => ({
 
   setAuthModal: (open) => set({ authModal: open }),
 
-  dummySignIn: (isAdmin = false) => {
-    localStorage.setItem('dummy_auth', 'true');
-    if (isAdmin) {
-      localStorage.setItem('dummy_admin', 'true');
-    } else {
-      localStorage.removeItem('dummy_admin');
+  dummySignIn: async (phone, otp) => {
+    if (otp !== '123456') {
+      throw new Error('Invalid OTP code. Please use the demo code 123456.');
     }
-    
-    const profile = { ...DUMMY_PROFILE };
-    if (isAdmin) {
-      profile.admin_role = 'super_admin';
-      profile.full_name = 'Admin User';
+
+    // Generate a unique email for this phone number
+    const cleanPhone = phone.replace(/\D/g, '');
+    const email = `${cleanPhone}@lymlyn.com`;
+    const password = `lymlyn-dummy-123456`; // They must enter the same OTP to login again
+
+    // Try to sign in first
+    let { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    // If invalid login or email not confirmed, we need to register/confirm via backend
+    if (error && (error.message.includes('Invalid login credentials') || error.message.includes('Email not confirmed'))) {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/dummy-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp })
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to register user. Please try again.');
+      }
+
+      // Now sign in should work perfectly since email is confirmed
+      const retry = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (retry.error) {
+        throw retry.error;
+      }
+    } else if (error) {
+      console.error('Dummy Auth Error:', error);
+      throw error;
     }
-    
-    set({ user: DUMMY_USER, profile, loading: false, authModal: false });
+
+    set({ authModal: false });
+    // Note: onAuthStateChange will handle setting the user state
   },
 
   initialize: async () => {
-    // Check dummy auth
-    if (localStorage.getItem('dummy_auth') === 'true') {
-      const isAdmin = localStorage.getItem('dummy_admin') === 'true';
-      const profile = { ...DUMMY_PROFILE };
-      if (isAdmin) {
-        profile.admin_role = 'super_admin';
-        profile.full_name = 'Admin User';
-      }
-      set({ user: DUMMY_USER, profile, loading: false });
-      return;
-    }
+    // Clean up any old fake dummy auth from localStorage if it exists
+    localStorage.removeItem('dummy_auth');
+    localStorage.removeItem('dummy_admin');
 
     // Get initial session
     const { data: { session } } = await supabase.auth.getSession();
@@ -65,7 +71,6 @@ const useAuthStore = create((set, get) => ({
 
     // Listen for auth changes
     supabase.auth.onAuthStateChange(async (event, session) => {
-      if (localStorage.getItem('dummy_auth') === 'true') return;
       if (session?.user) {
         set({ user: session.user });
         await get().fetchProfile(session.user.id);
@@ -76,7 +81,6 @@ const useAuthStore = create((set, get) => ({
   },
 
   fetchProfile: async (userId) => {
-    if (localStorage.getItem('dummy_auth') === 'true') return;
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -89,11 +93,6 @@ const useAuthStore = create((set, get) => ({
     const { user } = get();
     if (!user) return;
 
-    if (localStorage.getItem('dummy_auth') === 'true') {
-      set({ profile: { ...get().profile, ...updates } });
-      return { data: get().profile, error: null };
-    }
-
     const { data, error } = await supabase
       .from('profiles')
       .upsert({ id: user.id, ...updates })
@@ -105,7 +104,6 @@ const useAuthStore = create((set, get) => ({
   },
 
   signOut: async () => {
-    localStorage.removeItem('dummy_auth');
     await supabase.auth.signOut();
     set({ user: null, profile: null });
   },

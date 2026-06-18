@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAdminAuth from '@/hooks/useAdminAuth';
 import { adminApi } from '@/lib/api';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function AdminCustomers() {
   const { role } = useAdminAuth();
@@ -14,10 +15,25 @@ export default function AdminCustomers() {
 
   useEffect(() => {
     setLoading(true);
-    adminApi.listCustomers(search ? { search } : {})
-      .then((r) => setCustomers(r.customers || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const fetchCustomers = () => {
+      adminApi.listCustomers(search ? { search } : {})
+        .then((r) => setCustomers(r.customers || []))
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    };
+
+    fetchCustomers();
+
+    const channel = supabase.channel('realtime-admin-customers')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        console.log('Profile changed, refetching...');
+        fetchCustomers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [search]);
 
   const loadDetail = async (id) => {

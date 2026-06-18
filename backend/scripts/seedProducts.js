@@ -20,29 +20,29 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const QUERIES = [
   { 
-    term: "men t-shirt flat lay white background clothing only",
-    type: 'tshirt', count: 10, fit: 'regular', namePrefix: "Men's",
-    images: ['/products/black-tshirt-v2.png', '/products/striped-tshirt-v2.png', '/products/graphic-tshirt-v2.png']
+    term: "men t-shirt",
+    type: 'tshirt', count: 1, fit: 'regular', namePrefix: "Men's Minimalist",
+    images: ['/products/tshirt-front-offwhite.png', '/products/tshirt-back-offwhite.png']
   },
   {
-    term: "women t-shirt flat lay white background clothing product",
-    type: 'tshirt', count: 10, fit: 'regular', namePrefix: "Women's",
-    images: ['/products/womens-croptop-v2.png', '/products/womens-blouse-v2.png']
+    term: "women t-shirt",
+    type: 'tshirt', count: 1, fit: 'regular', namePrefix: "Women's Minimalist",
+    images: ['/products/womens-tshirt-offwhite.png']
   },
   {
-    term: "folded jeans flat lay clothing product photography white background",
-    type: 'lower', count: 10, fit: 'regular', namePrefix: "Men's",
-    images: ['/products/cargo-pants-v2.png', '/products/grey-joggers-v2.png']
+    term: "men trousers",
+    type: 'lower', count: 1, fit: 'regular', namePrefix: "Men's Minimalist",
+    images: ['/products/mens-trousers-offwhite.png']
   },
   {
-    term: "women jeans trousers flat lay white background clothing product",
-    type: 'lower', count: 10, fit: 'regular', namePrefix: "Women's",
-    images: ['/products/womens-flared-jeans-v2.png', '/products/womens-skirt-v2.png']
+    term: "women trousers",
+    type: 'lower', count: 1, fit: 'regular', namePrefix: "Women's Minimalist",
+    images: ['/products/womens-trousers-offwhite.png']
   }
 ];
 
 async function seed() {
-  console.log('--- Seeding Products with Perfect AI Garments ---');
+  console.log('--- Seeding Products with Minimalist Off-White Garments ---');
   
   // 1. Ensure categories exist
   const { data: tCat, error: tErr } = await supabase.from('categories').upsert({ slug: 't-shirts', name: 'T-Shirts' }, { onConflict: 'slug' }).select().single();
@@ -57,47 +57,21 @@ async function seed() {
   for (const q of QUERIES) {
     console.log(`Creating ${q.count} items for "${q.term}"...`);
     
-    // Fetch unique images from Pexels
-    let fetchedImages = [];
-    try {
-      // Fetch clothing-only flat-lay photos from Pexels (no models/people)
-      const pexelsRes = await fetch(
-        `https://api.pexels.com/v1/search?query=${encodeURIComponent(q.term)}&per_page=${q.count}&orientation=square`,
-        { headers: { Authorization: PEXELS_API_KEY } }
-      );
-      const pexelsData = await pexelsRes.json();
-      if (pexelsData.photos && pexelsData.photos.length > 0) {
-        fetchedImages = pexelsData.photos.map(p => p.src.large);
-      }
-    } catch (e) {
-      console.error('Failed to fetch from Pexels for', q.term, e.message);
-    }
-
-    // Fallback if Pexels fails
-    if (fetchedImages.length === 0) {
-      fetchedImages = q.images;
-    }
+    let fetchedImages = q.images;
     
     for (let i = 0; i < q.count; i++) {
-      const name = `${q.namePrefix} ${q.type === 'tshirt' ? 'T-Shirt' : 'Pants'} - Style ${i+1}`;
-      const slug = `${q.namePrefix.toLowerCase().replace(/[^a-z]/g, '')}-${q.type}-style-${i+1}-${Math.random().toString(36).substring(2, 7)}`;
+      const name = `${q.namePrefix} ${q.type === 'tshirt' ? 'T-Shirt' : 'Pants'}`;
+      const slug = `${q.namePrefix.toLowerCase().replace(/[^a-z]/g, '')}-${q.type}-${Math.random().toString(36).substring(2, 7)}`;
       const basePrice = Math.floor(Math.random() * (2500 - 999) + 999);
       
       const categoryId = q.type === 'tshirt' ? tCat.id : q.type === 'lower' ? lCat.id : aCat.id;
-      
-      // Assign a unique image if possible
-      const selectedImage = fetchedImages[i] || fetchedImages[Math.floor(Math.random() * fetchedImages.length)];
-
-      // 30% chance of being on sale
-      const isDiscounted = Math.random() > 0.7;
-      const compareAtPrice = isDiscounted ? Math.floor(basePrice * 1.3) : null;
 
       // 1. Insert product
       const { data: product, error: pErr } = await supabase.from('products').insert({
         category_id: categoryId,
         name,
         slug,
-        description: `Premium ${q.term} featuring high quality fabric.`,
+        description: `Premium minimalist ${q.term} featuring high quality fabric and an off-white aesthetic.`,
         base_price: basePrice,
         garment_type: q.type,
         fit_type: q.fit,
@@ -109,27 +83,29 @@ async function seed() {
         continue;
       }
 
-      // 2. Insert product image
-      const { error: iErr } = await supabase.from('product_images').insert({
-        product_id: product.id,
-        image_url: selectedImage,
-        image_type: 'lifestyle',
-        sort_order: 1
-      });
+      // 2. Insert product images
+      for (let j = 0; j < fetchedImages.length; j++) {
+        const { error: iErr } = await supabase.from('product_images').insert({
+          product_id: product.id,
+          image_url: fetchedImages[j],
+          image_type: 'lifestyle',
+          sort_order: j
+        });
+        if (iErr) console.error("Failed to insert image:", iErr);
+      }
 
-      // Insert an explicit cutout type for Virtual Try-On so it prefers this image
+      // Insert an explicit cutout type for Virtual Try-On using the primary image
       await supabase.from('product_images').insert({
         product_id: product.id,
-        image_url: selectedImage,
+        image_url: fetchedImages[0],
         image_type: 'cutout',
-        sort_order: 2
+        sort_order: 99
       });
 
-      if (iErr) console.error("Failed to insert image:", iErr);
 
       // 3. Insert some variants (colors and sizes)
       const colors = [
-        { name: 'Primary', hex: '#000000' }
+        { name: 'Charcoal', hex: '#333333' }
       ];
       
       const sizes = ['S', 'M', 'L', 'XL'];
@@ -151,7 +127,7 @@ async function seed() {
       const { error: vErr } = await supabase.from('product_variants').insert(variants);
       if (vErr) console.error("Failed to insert variants:", vErr);
       
-      console.log(`  ✓ Inserted: ${name}`);
+      console.log(`  ✓ Inserted: ${name} with ${fetchedImages.length} images`);
     }
   }
 

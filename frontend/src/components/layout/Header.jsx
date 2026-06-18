@@ -14,7 +14,7 @@ const MEGA_MENU = {
     ],
     features: [
       { icon: <Sparkles size={14} />, text: 'AI Virtual Try-On enabled' },
-      { icon: <Zap size={14} />, text: 'Ships in 24 hours' },
+      { icon: <Zap size={14} />, text: 'Easy 30-day returns' },
     ],
     accent: 'from-violet-600/10 to-blue-600/5',
     glow: 'before:from-violet-500/20',
@@ -95,6 +95,103 @@ export default function Header() {
 
   const isPill = isHome && !isScrolled;
 
+  const renderMegaMenu = (key) => {
+    const menu = MEGA_MENU[key];
+    if (!menu) return null;
+    const isVisible = megaVisible && hoveredMenu === key;
+
+    return (
+      <div
+        className={`absolute top-[90%] left-1/2 transition-all duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
+          isVisible
+            ? 'opacity-100 scale-y-100 translate-y-0 pointer-events-auto'
+            : 'opacity-0 scale-y-95 -translate-y-1 pointer-events-none'
+        }`}
+        style={{
+          transform: isVisible ? 'translateX(-50%) scaleY(1)' : 'translateX(-50%) scaleY(0.95)',
+        }}
+        onMouseEnter={() => {
+          clearTimeout(megaTimeout.current);
+          setMegaVisible(true);
+        }}
+        onMouseLeave={closeMega}
+      >
+        <div
+          className={`mt-2 rounded-2xl overflow-hidden shadow-[0_16px_40px_rgba(0,0,0,0.08)] border ${
+            isPill
+              ? 'bg-black/30 backdrop-blur-2xl border-white/10 text-white shadow-black/50'
+              : 'bg-surface/75 backdrop-blur-2xl border-white/60 text-ink'
+          }`}
+          style={{ minWidth: '220px' }}
+        >
+          {/* Section header */}
+          <div className={`px-4 pt-4 pb-3 border-b ${isPill ? 'border-white/8' : 'border-border/50'}`}>
+            <p className={`text-[9px] font-bold tracking-[0.22em] uppercase mb-0.5 ${isPill ? 'text-white/35' : 'text-muted'}`}>
+              Shop
+            </p>
+            <h3 className={`font-display text-lg font-bold leading-none ${isPill ? 'text-white' : 'text-ink'}`}>
+              {menu.label}
+            </h3>
+          </div>
+
+          {/* Category links */}
+          <div className="px-2 py-2">
+            {menu.categories.map((cat) => (
+              <Link
+                key={cat.href}
+                to={cat.href}
+                className={`group flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                  isPill
+                    ? 'text-white/70 hover:text-white hover:bg-white/10'
+                    : 'text-ink/80 hover:text-ink hover:bg-white/60 shadow-sm hover:shadow-md'
+                } ${!isPill && 'hover:bg-white/40'}`}
+              >
+                <span className="flex items-center gap-2">
+                  <ArrowRight
+                    size={12}
+                    className={`opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-accent shrink-0`}
+                  />
+                  {cat.label}
+                </span>
+                {cat.badge && (
+                  <span className="text-[8px] font-bold bg-accent text-white px-1.5 py-0.5 rounded-full tracking-wide shrink-0">
+                    {cat.badge}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+
+          {/* Feature pills */}
+          <div className={`px-3 py-2.5 border-t flex flex-col gap-1.5 ${isPill ? 'border-white/8' : 'border-black/5'}`}>
+            {menu.features.map((feat, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-2 text-[11px] font-medium ${
+                  isPill ? 'text-white/40' : 'text-black/50'
+                }`}
+              >
+                <span className="text-accent shrink-0">{feat.icon}</span>
+                {feat.text}
+              </div>
+            ))}
+          </div>
+
+          {/* Shop all link */}
+          <div className={`px-4 py-3 border-t ${isPill ? 'border-white/8' : 'border-black/5'}`}>
+            <Link
+              to={key === 'men' ? '/products?gender=male' : '/products?gender=female'}
+              className="group flex items-center justify-between text-[11px] font-bold tracking-[0.14em] uppercase text-accent hover:gap-2 transition-all duration-150"
+            >
+              Shop All {menu.label}
+              <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       {/* Toast */}
@@ -113,8 +210,8 @@ export default function Header() {
             isPill
               ? 'h-24 md:h-28 pt-3 md:pt-4'
               : isScrolled
-              ? 'h-16 md:h-20 bg-white/80 backdrop-blur-2xl border-b border-black/5 shadow-[0_4px_32px_rgba(0,0,0,0.06)]'
-              : 'h-20 md:h-24 bg-white/95 backdrop-blur-sm border-b border-black/5'
+              ? 'h-16 md:h-20 bg-bg/90 backdrop-blur-2xl border-b border-ink/20 shadow-sm'
+              : 'h-20 md:h-24 bg-bg border-b border-ink/20'
           }`}
         >
           <div className="flex items-center justify-between h-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 w-full">
@@ -133,7 +230,7 @@ export default function Header() {
             {/* Logo */}
             <div className="flex-1 flex items-center justify-start">
               <Link to="/" className="group flex items-center transition-opacity hover:opacity-80">
-                <img src="/logo.svg" alt="LYM|LYN" className="h-8 md:h-10 object-contain" />
+                <img src="/logo.svg" alt="LYM|LYN" className="h-10 md:h-12 object-contain" />
               </Link>
             </div>
 
@@ -167,6 +264,7 @@ export default function Header() {
                     <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-0 bg-accent transition-all duration-200 group-hover:w-full" />
                   )}
                 </NavLink>
+                {renderMegaMenu('men')}
               </div>
 
               {/* WOMEN */}
@@ -187,6 +285,7 @@ export default function Header() {
                 >
                   Women
                 </NavLink>
+                {renderMegaMenu('women')}
               </div>
 
               {/* ACCESSORIES */}
@@ -277,106 +376,6 @@ export default function Header() {
             </div>
           </div>
         </header>
-
-        {/* ── Compact Dropdown — floats under the nav item ── */}
-        {hoveredMenu && MEGA_MENU[hoveredMenu] && (() => {
-          const menu = MEGA_MENU[hoveredMenu];
-
-          return (
-            <div
-              className={`absolute top-full transition-all duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
-                megaVisible && hoveredMenu
-                  ? 'opacity-100 scale-y-100 translate-y-0 pointer-events-auto'
-                  : 'opacity-0 scale-y-95 -translate-y-1 pointer-events-none'
-              }`}
-              style={{
-                left: '50%',
-                transform: megaVisible && hoveredMenu
-                  ? 'translateX(-50%) scaleY(1)'
-                  : 'translateX(-50%) scaleY(0.95)',
-              }}
-              onMouseEnter={() => {
-                clearTimeout(megaTimeout.current);
-                setMegaVisible(true);
-              }}
-              onMouseLeave={closeMega}
-            >
-              {/* The dropdown card */}
-              <div
-                className={`mt-2 rounded-2xl overflow-hidden shadow-2xl border ${
-                  isPill
-                    ? 'bg-black/40 backdrop-blur-3xl border-white/15 text-white shadow-black/50'
-                    : 'bg-white/95 backdrop-blur-2xl border-black/8 text-ink shadow-black/12'
-                }`}
-                style={{ minWidth: '200px' }}
-              >
-                {/* Section header */}
-                <div className={`px-4 pt-4 pb-3 border-b ${isPill ? 'border-white/8' : 'border-black/5'}`}>
-                  <p className={`text-[9px] font-bold tracking-[0.22em] uppercase mb-0.5 ${isPill ? 'text-white/35' : 'text-black/30'}`}>
-                    Shop
-                  </p>
-                  <h3 className={`font-display text-lg font-bold leading-none ${isPill ? 'text-white' : 'text-ink'}`}>
-                    {menu.label}
-                  </h3>
-                </div>
-
-                {/* Category links — auto-grow vertically as items added */}
-                <div className="px-2 py-2">
-                  {menu.categories.map((cat) => (
-                    <Link
-                      key={cat.href}
-                      to={cat.href}
-                      className={`group flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                        isPill
-                          ? 'text-white/70 hover:text-white hover:bg-white/10'
-                          : 'text-ink/70 hover:text-ink hover:bg-black/4'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <ArrowRight
-                          size={12}
-                          className={`opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-accent shrink-0`}
-                        />
-                        {cat.label}
-                      </span>
-                      {cat.badge && (
-                        <span className="text-[8px] font-bold bg-accent text-white px-1.5 py-0.5 rounded-full tracking-wide shrink-0">
-                          {cat.badge}
-                        </span>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-
-                {/* Feature pills */}
-                <div className={`px-3 py-2.5 border-t flex flex-col gap-1.5 ${isPill ? 'border-white/8' : 'border-black/5'}`}>
-                  {menu.features.map((feat, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-2 text-[11px] font-medium ${
-                        isPill ? 'text-white/40' : 'text-black/40'
-                      }`}
-                    >
-                      <span className="text-accent shrink-0">{feat.icon}</span>
-                      {feat.text}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Shop all link */}
-                <div className={`px-4 py-3 border-t ${isPill ? 'border-white/8' : 'border-black/5'}`}>
-                  <Link
-                    to={hoveredMenu === 'men' ? '/products?gender=male' : '/products?gender=female'}
-                    className="group flex items-center justify-between text-[11px] font-bold tracking-[0.14em] uppercase text-accent hover:gap-2 transition-all duration-150"
-                  >
-                    Shop All {menu.label}
-                    <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
       </div>
 

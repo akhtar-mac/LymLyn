@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, Search, Filter } from 'lucide-react';
 import useAdminAuth from '@/hooks/useAdminAuth';
 import { adminApi } from '@/lib/api';
+import { supabase } from '@/lib/supabaseClient';
 
 const STATUS_OPTIONS = ['', 'pending', 'paid', 'shipped', 'delivered', 'cancelled'];
 const STATUS_STYLES = {
@@ -22,10 +23,25 @@ export default function AdminOrders() {
 
   useEffect(() => {
     setLoading(true);
-    adminApi.listOrders(filter ? { status: filter } : {})
-      .then((r) => setOrders(r.orders || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const fetchOrders = () => {
+      adminApi.listOrders(filter ? { status: filter } : {})
+        .then((r) => setOrders(r.orders || []))
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    };
+
+    fetchOrders();
+
+    const channel = supabase.channel('realtime-admin-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        console.log('Order changed, refetching...');
+        fetchOrders();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [filter]);
 
   const handleStatusChange = async (orderId, status) => {

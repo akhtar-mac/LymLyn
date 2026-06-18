@@ -47,6 +47,7 @@ app.use('/api/orders', ordersRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/tryon', tryonRouter);
+app.use('/api/auth', require('./routes/auth'));
 
 // 404 handler
 app.use((req, res) => {

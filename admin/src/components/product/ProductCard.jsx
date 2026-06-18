@@ -63,7 +63,7 @@ export default function ProductCard({ product }) {
       <div className="relative aspect-[3/4] bg-surface overflow-hidden mb-4">
         {displayImage ? (
           <img
-            src={displayImage.image_url}
+            src={displayImage.image_url?.startsWith('/') ? `http://localhost:5173${displayImage.image_url}` : displayImage.image_url}
             alt={product.name}
             loading="lazy"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"

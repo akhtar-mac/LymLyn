@@ -4,9 +4,12 @@ import BodySelector from './BodySelector';
 import SelfieUpload from './SelfieUpload';
 import AvatarCanvas from './AvatarCanvas';
 import { generateTryon } from '@/lib/tryonApi';
+import useAuthStore from '@/store/authStore';
 
 export default function TryOnModal({ isOpen, onClose, product, selectedColor }) {
   const [step, setStep] = useState(1); // 1: Body, 2: Upload, 3: Generating, 4: Result
+  
+  const { profile } = useAuthStore();
   
   // Try-on State
   const [bodySpecs, setBodySpecs] = useState(null);
@@ -16,15 +19,55 @@ export default function TryOnModal({ isOpen, onClose, product, selectedColor }) 
   const [useFallback, setUseFallback] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   
+  const startGeneration = async (photoUrl) => {
+    setFaceData({ fullBodyUrl: photoUrl });
+    setStep(3);
+    setErrorMsg(null);
+    
+    try {
+      let garmentUrl = '/tryon/product-cutouts/essential-tee.jpg'; // fallback
+      if (product?.product_images?.length > 0) {
+        const cutoutImg = product.product_images.find(img => img.image_type === 'cutout') || product.product_images[0];
+        garmentUrl = cutoutImg.image_url;
+      } else if (product?.garment_type === 'lower') {
+        garmentUrl = '/tryon/product-cutouts/pants.jpg';
+      }
+      
+      const desc = `${product?.name || 'clothing item'}, ${product?.garment_type || 'tshirt'}`;
+      
+      const result = await generateTryon(photoUrl, garmentUrl, desc);
+      setAiResultUrl(result.image);
+      setStep(4);
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'model_loading') {
+        setErrorMsg('AI is warming up. Retrying in 30 seconds...');
+        setTimeout(() => startGeneration(photoUrl), 30000);
+        return;
+      }
+      
+      setErrorMsg(err.message || "AI Try-On failed. Please try again later.");
+      setStep(profile?.tryon_photo_url ? 3 : 2); // if they have profile photo, they can't go back to step 2 easily, but we show error. Actually if it fails let them go to step 2.
+      if (profile?.tryon_photo_url) {
+         setStep(4); // stay on error screen
+      }
+    }
+  };
+
   // Reset when opened
   useEffect(() => {
     if (isOpen) {
-      setStep(1);
       setAiResultUrl(null);
       setUseFallback(false);
       setErrorMsg(null);
+      
+      if (profile?.tryon_photo_url) {
+        startGeneration(profile.tryon_photo_url);
+      } else {
+        setStep(1);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, profile]);
 
   // Load anchors for fallback
   useEffect(() => {
@@ -51,37 +94,7 @@ export default function TryOnModal({ isOpen, onClose, product, selectedColor }) 
   };
 
   const handleUploadComplete = async (data) => {
-    setFaceData(data);
-    setStep(3); // Start generation
-    setErrorMsg(null);
-    
-    try {
-      let garmentUrl = '/tryon/product-cutouts/essential-tee.jpg'; // fallback
-      if (product?.product_images?.length > 0) {
-        // Find cutout image if it exists, otherwise fallback to the first available image
-        const cutoutImg = product.product_images.find(img => img.image_type === 'cutout') || product.product_images[0];
-        garmentUrl = cutoutImg.image_url;
-      } else if (product?.garment_type === 'lower') {
-        garmentUrl = '/tryon/product-cutouts/pants.jpg';
-      }
-      
-      const desc = `${product?.name || 'clothing item'}, ${product?.garment_type || 'tshirt'}`;
-      
-      const result = await generateTryon(data.fullBodyUrl, garmentUrl, desc);
-      setAiResultUrl(result.image);
-      setStep(4);
-    } catch (err) {
-      console.error(err);
-      if (err.code === 'model_loading') {
-        setErrorMsg('AI is warming up. Retrying in 30 seconds...');
-        // Stay on step 3 (loading)
-        setTimeout(() => handleUploadComplete(data), 30000);
-        return;
-      }
-      
-      setErrorMsg(err.message || "AI Try-On failed. Please try again later.");
-      setStep(2);
-    }
+    await startGeneration(data.fullBodyUrl);
   };
   
   const handleReset = () => {

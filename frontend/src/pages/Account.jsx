@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, Package, LogOut, Check } from 'lucide-react';
+import { User, Package, LogOut, Check, Camera, Upload } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { supabase } from '@/lib/supabaseClient';
 
 const BODY_TYPES = ['slim', 'average', 'heavy'];
 const FIT_PREFS = ['regular', 'oversized'];
-const GENDERS = ['male', 'female', 'unisex'];
+const GENDERS = ['male', 'female'];
 
 export default function Account() {
   const { user, profile, updateProfile, signOut } = useAuthStore();
@@ -15,20 +15,45 @@ export default function Account() {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [form, setForm] = useState({ full_name: '', phone: '', gender: '', height_cm: '', weight_kg: '', body_type: '', fit_preference: '' });
+  const [addressObj, setAddressObj] = useState({ street: '', city: '', state: '', pincode: '' });
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (profile) {
+      // Extract phone from dummy email if profile.phone is missing
+      let extractedPhone = profile.phone || '';
+      if (!extractedPhone && user?.email && user.email.includes('@lymlyn.com')) {
+        extractedPhone = user.email.replace('@lymlyn.com', '');
+      }
+
       setForm({
         full_name: profile.full_name || '',
-        phone: profile.phone || '',
+        phone: extractedPhone,
         gender: profile.gender || '',
         height_cm: profile.height_cm || '',
         weight_kg: profile.weight_kg || '',
         body_type: profile.body_type || '',
         fit_preference: profile.fit_preference || '',
       });
+      
+      try {
+        if (profile.address && profile.address.startsWith('{')) {
+          setAddressObj(JSON.parse(profile.address));
+        } else {
+          setAddressObj({ street: profile.address || '', city: '', state: '', pincode: '' });
+        }
+      } catch (e) {
+        setAddressObj({ street: profile.address || '', city: '', state: '', pincode: '' });
+      }
+
+      if (profile.tryon_photo_url) {
+        setPhotoPreview(profile.tryon_photo_url);
+      }
     }
   }, [profile]);
 
@@ -45,13 +70,55 @@ export default function Account() {
     }
   }, [activeTab, user]);
 
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setPhotoPreview(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
-    await updateProfile({ ...form, height_cm: Number(form.height_cm) || null, weight_kg: Number(form.weight_kg) || null });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setError('');
+
+    try {
+      let photo_url = profile?.tryon_photo_url;
+
+      if (photoFile && photoPreview !== profile?.tryon_photo_url) {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/upload-photo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.id,
+            image_data: photoPreview,
+            file_name: `tryon-profile-${Date.now()}.jpg`
+          })
+        });
+        
+        if (!res.ok) throw new Error('Failed to upload photo');
+        const data = await res.json();
+        photo_url = data.photo_url;
+      }
+
+      await updateProfile({ 
+        ...form,
+        address: JSON.stringify(addressObj),
+        height_cm: Number(form.height_cm) || null, 
+        weight_kg: Number(form.weight_kg) || null,
+        tryon_photo_url: photo_url
+      });
+      
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const statusColors = {
@@ -100,17 +167,72 @@ export default function Account() {
           {activeTab === 'profile' && (
             <form onSubmit={handleSave} className="card space-y-5">
               <h2 className="font-display text-2xl font-bold text-ink">Profile</h2>
-              <p className="text-sm text-muted">These details pre-fill the virtual try-on form.</p>
+              <p className="text-sm text-muted">These details pre-fill the virtual try-on form and your delivery address.</p>
+
+              {error && <p className="text-sm text-accent bg-accent/10 p-3 rounded">{error}</p>}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="full_name" className="input-label">Full Name</label>
-                  <input id="full_name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="input" placeholder="Your name" />
+                  <input required id="full_name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="input" placeholder="Your name" />
                 </div>
                 <div>
                   <label htmlFor="phone" className="input-label">Phone</label>
-                  <input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" placeholder="+91 98765 43210" />
+                  <input readOnly id="phone" value={form.phone ? (form.phone.startsWith('+') ? form.phone : '+91 ' + form.phone) : ''} className="input bg-black/5" placeholder="+91 98765 43210" />
                 </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <label className="input-label mb-0 block">Delivery Address</label>
+                <div>
+                  <input required id="street" value={addressObj.street} onChange={(e) => setAddressObj({ ...addressObj, street: e.target.value })} className="input" placeholder="House/Flat No., Building Name, Street" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <input required id="city" value={addressObj.city} onChange={(e) => setAddressObj({ ...addressObj, city: e.target.value })} className="input" placeholder="City" />
+                  </div>
+                  <div>
+                    <input required id="state" value={addressObj.state} onChange={(e) => setAddressObj({ ...addressObj, state: e.target.value })} className="input" placeholder="State" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <input required id="pincode" type="text" maxLength={6} value={addressObj.pincode} onChange={(e) => setAddressObj({ ...addressObj, pincode: e.target.value.replace(/\D/g, '') })} className="input" placeholder="PIN Code" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 pb-2 border-t border-b border-border">
+                <label className="input-label flex items-center gap-2">
+                  <Camera size={14} className="text-accent" /> Virtual Try-On Photo
+                </label>
+                
+                <div className="bg-surface rounded-lg p-4 mb-4 border border-accent/20">
+                  <p className="text-xs text-ink/80 leading-relaxed font-medium">
+                    For the best Virtual Try-On results, please upload a <span className="text-accent font-bold">well-lit, full-body photo</span> against a plain background, wearing form-fitting clothing.
+                  </p>
+                </div>
+
+                {photoPreview ? (
+                  <div className="relative aspect-[3/4] w-48 rounded-xl overflow-hidden bg-black/5 group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                    <img src={photoPreview} className="w-full h-full object-cover" alt="Preview" />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                      <Upload size={24} className="mb-2" />
+                      <span className="text-xs font-medium">Change Photo</span>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="w-48 aspect-[3/4] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted hover:text-ink hover:border-ink hover:bg-white transition-all">
+                    <Upload size={24} className="mb-3" />
+                    <span className="text-sm font-medium text-center px-4">Upload Full-Body Photo</span>
+                  </button>
+                )}
+                <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                {profile?.tryon_photo_url && (
+                  <p className="text-[11px] text-muted mt-3 max-w-sm">
+                    <span className="font-bold text-ink">Note:</span> You can currently update your Try-On photo anytime. In production, updates will be limited to once per month to ensure AI consistency, unless requested via support.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -163,7 +285,7 @@ export default function Account() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center gap-3 pt-4">
                 <button type="submit" disabled={saving} className="btn-primary px-8">
                   {saved ? <><Check size={16} /> Saved</> : saving ? 'Saving...' : 'Save Profile'}
                 </button>
